@@ -1,0 +1,64 @@
+#! /bin/bash
+if [ "$#" == "0" ]; then
+    echo "AnnoConvert <perl directory> <reference bed> <Sp1ToSp2_chain> <Sp2ToSp1_chain> <liftOver_minMatch> <output directory> <sp1> <sp2> <delete temp>";
+	echo "This command built cross species annotation based on annotation of species 1. The conversion of coordination is based on liftOver."
+	echo "<perl directory>: the directory where perl scripts locate";
+	echo "<reference bed>: reference bed file. The annotation of each line should include at least geneID|transcriptID|geneName|transcriptName, separated by |";
+	echo "<Sp1ToSp2_chain>: chain file convert coordinate from species 1 to species 2";
+	echo "<Sp2ToSp1_chain>: chain file convert coordinate from species 2 to species 1";
+	echo "<liftOver_minMatch>: -minMatch parameter pass to liftOver";
+	echo "<output directory>: output directory";
+	echo "<delete temp>: whether temporary directory should be deleted (Y/N)";
+    exit 1
+fi
+
+## parameters
+# gtf input 
+Sp1Anno="$2"; # gtf file name
+# liftOver parameters
+liftOver_minMatch=$5; # liftOver min match Sp1 to Sp2
+Sp1ToSp2_chain="$3";
+Sp2ToSp1_chain="$4";
+# function directory
+perl_dir="$1";
+# output directory
+output_dir="$6";
+# output species 1 and species 2
+Sp1="$7"
+Sp2="$8"
+# whether temporary files should be deleted
+delete_temp="$9";
+
+
+cd $output_dir;
+[ -d liftOver ] || mkdir liftOver;
+## liftOver
+# Sp1 to Sp2
+liftOver -minMatch=$liftOver_minMatch $Sp1Anno $Sp1ToSp2_chain ./liftOver/${Sp1}To${Sp2}Anno.bed ./liftOver/${Sp1}To${Sp2}Anno.unmapped
+# Sp2 back to Sp1
+liftOver -minMatch=$liftOver_minMatch ./liftOver/${Sp1}To${Sp2}Anno.bed $Sp2ToSp1_chain ./liftOver/${Sp2}To${Sp1}Anno.bed ./liftOver/${Sp2}To${Sp1}Anno.unmapped
+
+## filter the exons cannot map back to original Sp1 genome
+perl $perl_dir/mapBackFilter.pl --sp1CoordIn ./liftOver/${Sp2}To${Sp1}Anno.bed --sp2CoordIn ./liftOver/${Sp1}To${Sp2}Anno.bed --sp1Ref $Sp1Anno --sp2CoordOut ./liftOver/${Sp2}.liftOver.biFiltered.${Sp2}Coord --sp1CoordOut ./liftOver/${Sp2}.liftOver.biFiltered.${Sp1}Coord
+
+## filter the transcripts with exons mapped to different strands or chromosomes
+# coordinate of their own genome
+perl $perl_dir/bed2interval.pl -i ./liftOver/${Sp2}.liftOver.biFiltered.${Sp2}Coord.bed -o ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp2}Coord.interval -c
+# coordinate of Sp1
+perl $perl_dir/bed2interval.pl -i ./liftOver/${Sp2}.liftOver.biFiltered.${Sp1}Coord.bed -o ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp1}Coord.interval -c
+
+## filter bed file by interval file (bed file some times has extra information than interval file)
+# coordinate of own genome
+perl $perl_dir/filterBedbyInterval.pl -b ./liftOver/${Sp2}.liftOver.biFiltered.${Sp2}Coord.bed -i ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp2}Coord.interval -o ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp2}Coord.bed
+
+# coordinate of Sp1
+perl $perl_dir/filterBedbyInterval.pl -b ./liftOver/${Sp2}.liftOver.biFiltered.${Sp1}Coord.bed -i ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp1}Coord.interval -o ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp1}Coord.bed
+
+# Intersect - final liftOver result
+perl $perl_dir/intersectBed_byName.pl --bed1 ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp1}Coord.bed --bed2 ./liftOver/${Sp2}.liftOver.biFiltered.cleared.${Sp2}Coord.bed --out1 ./${Sp1}.${Sp1}_${Sp2}.liftOver.bed --out2 ./${Sp2}.${Sp1}_${Sp2}.liftOver.bed
+
+
+if [ "$delete_temp" == "Y" ]; then
+	rm -r temp/;
+fi
+

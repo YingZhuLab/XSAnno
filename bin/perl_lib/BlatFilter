@@ -1,0 +1,83 @@
+#! /bin/bash
+if [ "$#" == "0" ]; then
+	echo "BlatFilter <Sp1.2bit> <Sp2.2bit> <Sp1Anno.bed> <Sp2Anno.bed> <inter-species ID> <inter-species PL> <paralog ID> <paralog PL> <perl directory> <output directory> <Species 1> <Species 2> <Sp1.11ooc (optional)> <Sp2.11ooc(optional)>";
+	echo "This command filters cross species annotation based on BLAT"
+	echo "<Sp1.2bit>: the 2bit genome files of Species 1";
+	echo "<Sp2.2bit>: the 2bit genome files of Species 2";
+	echo "<Sp1Anno.bed>: Species 1 annotation in bed format";
+	echo "<Sp2Anno.bed>: Species 2 annotation in bed format";
+	echo "<inter-species ID>: BLAT Identity Score between two species, value from 0 to 1. 1 mean exact match.";
+	echo "<inter-species PL>: Percentage of length aligned between species, value from 0 to 1";
+	echo "<paralog ID>: BLAT Identity Score between paralogs, value from 0 to 1. 1 mean exact match.";
+	echo "<paralog PL>: Percentage of length aligned between paralogs, value from 0 to 1";
+	echo "<perl directory>: the directory where perl scripts locate";
+	echo "<output directory>: the directory where the output files should be write to";
+	echo "<Species 1>: output name of Species 1";
+	echo "<Species 2>: output name of Species 2";
+	echo "<Sp1.11ooc>: (optional) the 11ooc file of Species 1 provided for BLAT";
+	echo "<Sp2.11ooc>: (optional) the 11ooc file of Species 2 provided for BLAT";
+	exit 1
+fi
+
+## paramters
+# Input files
+sp1_2bit=$1;
+sp2_2bit=$2;
+
+sp1Bed=$3;
+sp2Bed=$4;
+
+# BLAT parameters
+interSpID=$5;
+interSpPL=$6;
+
+paralogID=$7
+paralogPL=$8
+
+# output parameters
+perl_dir=$9
+out_dir=${10};
+Sp1=${11};
+Sp2=${12};
+
+# optional parameters
+[ -z ${13} ] || sp1_11ooc=${13}
+[ -z ${14} ] || sp2_11ooc=${14}
+
+###########################################33
+cd $out_dir;
+[ -d ./blat ] || mkdir blat;
+
+## blat the shared annotation file to each other
+# get sequence from annotation file
+perl $perl_dir/bed2interval.pl -i $sp1Bed -o ./blat/${Sp1}.liftOver.shared.Interval
+perl $perl_dir/bed2interval.pl -i $sp2Bed -o ./blat/${Sp2}.liftOver.shared.Interval
+
+interval2sequences $sp1_2bit ./blat/${Sp1}.liftOver.shared.Interval exonic >./blat/${Sp1}.liftOver.shared.fa
+interval2sequences $sp2_2bit ./blat/${Sp2}.liftOver.shared.Interval exonic > ./blat/${Sp2}.liftOver.shared.fa
+
+# Sp1/Sp2 to Sp1 genome
+if [ ! -z $sp1_11ooc ]; then
+	blat $sp1_2bit ./blat/${Sp1}.liftOver.shared.fa -ooc=$sp1_11ooc ./blat/blat.exon.${Sp1}To${Sp1}.psl
+	blat $sp1_2bit ./blat/${Sp2}.liftOver.shared.fa -ooc=$sp1_11ooc ./blat/blat.exon.${Sp2}To${Sp1}.psl
+else
+	blat $sp1_2bit ./blat/${Sp1}.liftOver.shared.fa ./blat/blat.exon.${Sp1}To${Sp1}.psl
+	blat $sp1_2bit ./blat/${Sp2}.liftOver.shared.fa ./blat/blat.exon.${Sp2}To${Sp1}.psl
+fi
+
+# Sp1/Sp2 to Sp2 genome
+if [ ! -z $sp2_11ooc ]; then
+	blat $sp2_2bit ./blat/${Sp1}.liftOver.shared.fa -ooc=$sp2_11ooc ./blat/blat.exon.${Sp1}To${Sp2}.psl
+	blat $sp2_2bit ./blat/${Sp2}.liftOver.shared.fa -ooc=$sp2_11ooc ./blat/blat.exon.${Sp2}To${Sp2}.psl
+else
+	blat $sp2_2bit ./blat/${Sp1}.liftOver.shared.fa ./blat/blat.exon.${Sp1}To${Sp2}.psl
+	blat $sp2_2bit ./blat/${Sp2}.liftOver.shared.fa ./blat/blat.exon.${Sp2}To${Sp2}.psl
+fi
+
+# filter blat alignment files
+perl $perl_dir/filter_alignments.pl -i ./blat/blat.exon.${Sp1}To${Sp2}.psl -o ./blat/blat.exon.${Sp1}To${Sp2}.filtered.txt -s $interSpID -l $interSpPL
+perl $perl_dir/filter_alignments.pl -i ./blat/blat.exon.${Sp2}To${Sp1}.psl -o ./blat/blat.exon.${Sp2}To${Sp1}.filtered.txt -s $interSpID -l $interSpPL
+
+perl $perl_dir/filter_alignments.pl -i ./blat/blat.exon.${Sp1}To${Sp1}.psl -o ./blat/blat.exon.${Sp1}To${Sp1}.filtered.txt -s $paralogID -l $paralogPL
+perl $perl_dir/filter_alignments.pl -i ./blat/blat.exon.${Sp2}To${Sp2}.psl -o ./blat/blat.exon.${Sp2}To${Sp2}.filtered.txt -s $paralogID -l $paralogPL
+
