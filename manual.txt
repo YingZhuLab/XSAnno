@@ -1,0 +1,69 @@
+#####################################################
+# AnnoConvert #
+###############
+
+This command generate LiftOver Annotation based on annotation of species 1.
+For help, type AnnoConvert and enter.
+
+usage:
+AnnoConvert <perl directory> <reference bed> <Sp1ToSp2_chain> <Sp2ToSp1_chain> <liftOver_minMatch> <output directory> <sp1> <sp2> <delete temp>
+
+where:
+<perl directory>: the directory where perl_lib locate (/path_to_XSAnno/bin/perl_lib)
+<reference bed>: reference bed file. The annotation field of each line should include at least geneID|transcriptID|geneName|transcriptName, separated by "|"
+<Sp1ToSp2_chain>: chain file convert coordinate from species 1 to species 2
+<Sp2ToSp1_chain>: chain file convert coordinate from species 2 to species 1
+<liftOver_minMatch>: -minMatch parameter pass to liftOver
+<output directory>: output directory
+<delete temp>: whether temporary directory should be deleted (Y/N)
+
+
+#####################################################
+# BlatFilter #
+###############
+
+This command performs local alignment to filter orthologs.
+For help, type BlatFilter and enter.
+
+usage:
+BlatFilter <Sp1.2bit> <Sp2.2bit> <Sp1Anno.bed> <Sp2Anno.bed> <inter-species ID> <inter-species PL> <paralog ID> <paralog PL> <perl directory> <output directory> <Species 1> <Species 2> <Sp1.11ooc (optional)> <Sp2.11ooc(optional)>
+
+
+<Sp1.2bit>: the 2bit genome files of Species 1
+<Sp2.2bit>: the 2bit genome files of Species 2
+<Sp1Anno.bed>: Species 1 annotation in bed format (LiftOver Annotation)
+<Sp2Anno.bed>: Species 2 annotation in bed format (LiftOver Annotation)
+<inter-species PID>: BLAT Percent Identity Score between two species, value from 0 to 1. 1 mean exact match.
+<inter-species PL>: Percentage of length aligned between species, value from 0 to 1
+<paralog PID>: BLAT Percent Identity Score between paralogs, value from 0 to 1. 1 mean exact match.
+<paralog PL>: Percentage of length aligned between paralogs, value from 0 to 1
+<perl directory>: the directory where perl scripts locate
+<output directory>: the directory where the output files should be write to
+<Species 1>: output name of Species 1
+<Species 2>: output name of Species 2
+<Sp1.11ooc>: (optional) the 11ooc file of Species 1 provided for BLAT to speed up alignment
+<Sp2.11ooc>: (optional) the 11ooc file of Species 2 provided for BLAT to speed up alignment
+
+NOTE: choose loose PID and PL in this step. Further filtering will be performed using R functions.
+
+
+#####################################################
+# liftOverBlockSim.pl #
+#######################
+
+This perl script generates a matrix of percent of identity (PID) calculated from random sampling of short sequences in whole-genome pairwise alignment.
+
+Usage:
+perl liftOverBlockSim.pl <options>
+
+Options:
+ -i for input axt files, seperated by ","
+ -o for output file
+ -s for segment size
+ -n for number of iterations
+
+Output:
+A matrix of percent of identity (PID). Each row represents PIDs from one iteration. Each column represents each genomic block from where the short sequences are sampled.
+
+
+
